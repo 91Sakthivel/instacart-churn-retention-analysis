@@ -19,7 +19,7 @@ DATA_DEPT_RES     = _HERE / "department_residuals.csv"
 DATA_CAT_RISK     = _HERE / "category_risk_report.csv"
 DATA_METRICS      = _HERE / "model_metrics.csv"
 CHART_FEAT_IMP    = _HERE / "feature_importance_classifier.png"
-DATA_CAT_RISK     = _P / "data"    / "processed" / "category_risk_report.csv"
+DATA_CAT_RISK     = _HERE / "category_risk_report.csv"
 DATA_METRICS      = _HERE / "model_metrics.csv"
 CHART_FEAT_IMP    = _HERE / "feature_importance_classifier.png"
 import streamlit as st
