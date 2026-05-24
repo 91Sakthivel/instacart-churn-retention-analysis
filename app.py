@@ -116,7 +116,6 @@ T_LABELS = {
 def _safe(path, **kw):
     p = Path(path)
     try:
-        if p.exists():
             return pd.read_csv(p, **kw)
     except Exception as e:
         st.warning(f"Could not load {p.name}: {e}")
