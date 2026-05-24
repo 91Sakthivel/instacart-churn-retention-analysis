@@ -276,7 +276,7 @@ if page == "Executive Dashboard":
             disp["Risk Score"] = disp["Risk Score"].map(fc)
         st.dataframe(disp, width=700, hide_index=True)
     else:
-        st.info("risk_ranked_customers.csv not loaded.")
+        st.info("risk_ranked_top5k.csv not loaded.")
 
 # ============================================================
 # PAGE 2 — Business Findings & Recommendations
