@@ -6,15 +6,19 @@ from pathlib import Path
 
 # ROOT = project root (parent of the streamlit/ directory).
 # Works on Windows, Linux, and Streamlit Cloud identically.
-ROOT = Path(__file__).resolve().parent.parent
+
 
 # ---- Data paths (relative to project root) -----------------
-_P = ROOT
-DATA_RISK_RANKED  = _P / "outputs" / "reports" / "risk_ranked_customers.csv"
-DATA_RFM          = _P / "data"    / "processed" / "rfm_segments.csv"
-DATA_TRAJ         = _P / "data"    / "processed" / "trajectory_segments.csv"
-DATA_ROI          = _P / "outputs" / "reports" / "retention_roi.csv"
-DATA_DEPT_RES     = _P / "outputs" / "reports" / "department_residuals.csv"
+_HERE = Path(__file__).parent
+
+DATA_RISK_RANKED  = _HERE / "risk_ranked_top5k.csv"
+DATA_RFM          = _HERE / "rfm_segments.csv"
+DATA_TRAJ         = _HERE / "trajectory_segments.csv"
+DATA_ROI          = _HERE / "retention_roi.csv"
+DATA_DEPT_RES     = _HERE / "department_residuals.csv"
+DATA_CAT_RISK     = _HERE / "category_risk_report.csv"
+DATA_METRICS      = _HERE / "model_metrics.csv"
+CHART_FEAT_IMP    = _HERE / "feature_importance_classifier.png"
 DATA_CAT_RISK     = _P / "data"    / "processed" / "category_risk_report.csv"
 DATA_METRICS      = _P / "outputs" / "reports" / "model_metrics.csv"
 CHART_FEAT_IMP    = _P / "outputs" / "charts"   / "feature_importance_classifier.png"
