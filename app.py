@@ -7,7 +7,7 @@ from pathlib import Path
 # ROOT = project root (parent of the streamlit/ directory).
 # Works on Windows, Linux, and Streamlit Cloud identically.
 import os
-st.write(os.listdir(_HERE))
+
 
 # ---- Data paths (relative to project root) -----------------
 _HERE = Path(__file__).parent
