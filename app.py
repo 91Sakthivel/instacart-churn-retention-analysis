@@ -200,12 +200,45 @@ with st.sidebar:
 if page == "Executive Dashboard":
     st.title("Instacart Revenue Protection — Executive View")
 
-    # --- Metric cards ---
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Customers Analyzed", "206,209")
-    m2.metric("Customers in Behavioral Model", "175,072")
-    m3.metric("60-Day Revenue at Risk", "$626,303")
-    m4.metric("Most Exposed Department", "Produce ($183,384)")
+    # --- Executive KPI Scorecard ---
+    st.subheader("Executive KPI Scorecard")
+    st.markdown("*Live metrics from the retention analytics pipeline*")
+
+    # Recovery rates per trajectory type (validated in pipeline/05b_trajectory.py)
+    _KPI_RR = {"A": 0.35, "B": 0.20, "D": 0.40, "C": 0.05}
+    _TOTAL_MODELLED = 175072
+
+    # Compute KPI values from already-loaded data
+    _high_risk_n    = len(risk) if len(risk) > 0 else 0
+    _high_risk_pct  = _high_risk_n / _TOTAL_MODELLED * 100
+
+    _avg_churn_prob = 0.0
+    if len(risk) > 0 and "P_churn" in risk.columns:
+        _avg_churn_prob = float(risk["P_churn"].mean())
+
+    _est_saved = 0
+    if len(roi) > 0 and "n_customers" in roi.columns and "trajectory_type" in roi.columns:
+        for _, _row in roi.iterrows():
+            _est_saved += float(_row["n_customers"]) * _KPI_RR.get(_row["trajectory_type"], 0)
+
+    _est_rev = 0.0
+    if len(risk) > 0 and "predicted_loss" in risk.columns and "trajectory_type" in risk.columns:
+        _r_tmp = risk.copy()
+        _r_tmp["_rr"] = _r_tmp["trajectory_type"].map(_KPI_RR).fillna(0)
+        _est_rev = float((_r_tmp["predicted_loss"] * _r_tmp["_rr"]).sum())
+
+    # Row 1 — 4 cards
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Total Customers Analyzed",  f"{_TOTAL_MODELLED:,}")
+    k2.metric("High-Risk Customers",       f"{_high_risk_n:,}")
+    k3.metric("High-Risk %",               f"{_high_risk_pct:.1f}%")
+    k4.metric("Avg Churn Probability",     f"{_avg_churn_prob:.3f}")
+
+    # Row 2 — 3 cards
+    k5, k6, k7 = st.columns(3)
+    k5.metric("Priority Segment",          "Type A — Fading Frequency (44.5% churn)")
+    k6.metric("Est. Customers Saved",      f"{int(_est_saved):,}")
+    k7.metric("Est. Revenue Protected",    fc(_est_rev))
 
     st.markdown("---")
 
@@ -417,6 +450,56 @@ elif page == "Business Findings & Recommendations":
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ----------------------------------------------------------
+    # SECTION 4 — Key Insights & Recommendations
+    # ----------------------------------------------------------
+    st.subheader("Key Insights & Recommendations")
+
+    ins_col, rec_col = st.columns(2)
+
+    with ins_col:
+        st.markdown("""
+        <div style="background:#f0f7ff;border-left:4px solid #2980b9;border-radius:6px;
+                    padding:20px;height:100%;">
+          <div style="font-weight:700;font-size:1.0rem;color:#2980b9;margin-bottom:12px;">
+            &#128202; Key Insights
+          </div>
+          <ul style="font-size:0.9rem;color:#444;line-height:1.8;padding-left:18px;margin:0;">
+            <li>Gap widening is the primary churn signal — customers who widen order gaps by
+                5+ days show significantly elevated churn risk</li>
+            <li>Basket size does NOT decline before churn — the basket is flat or slightly
+                rising into the final order (9.79 → 10.15 items)</li>
+            <li>Churn is behavioral, not categorical — residual analysis found no
+                department-level anomalies across all 21 product categories</li>
+            <li>The top 53% of customers drive 80% of total revenue risk — precise targeting
+                outperforms blanket retention campaigns by a wide margin</li>
+          </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with rec_col:
+        st.markdown("""
+        <div style="background:#f0fff4;border-left:4px solid #27ae60;border-radius:6px;
+                    padding:20px;height:100%;">
+          <div style="font-weight:700;font-size:1.0rem;color:#27ae60;margin-bottom:12px;">
+            &#9989; Recommendations
+          </div>
+          <ul style="font-size:0.9rem;color:#444;line-height:1.8;padding-left:18px;margin:0;">
+            <li>Start with Type D loyalty rewards — 17,891% ROI and 40% recovery on the
+                highest-value customers; act before gap exceeds 20 days</li>
+            <li>Replace Type C discount spend with $0.50 push notifications immediately —
+                saves $980,584 annually with no measurable recovery loss</li>
+            <li>Deploy Type B phone calls within 48 hours of sudden-stop detection —
+                recoverable only with immediate, personal outreach</li>
+            <li>Retrain the model monthly on fresh order data — behavioral patterns shift
+                with seasons, promotions, and competitive activity</li>
+          </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
 # ============================================================
 # PAGE 3 — Customer Risk Explorer
 # ============================================================
@@ -572,6 +655,74 @@ elif page == "Intervention & ROI":
           <b>Type {tt} ({T_LABELS[tt].split(': ')[1]}):</b> {msg}
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # --- Retention Campaign ROI Simulator ---
+    st.subheader("Retention Campaign ROI Simulator")
+    st.markdown("*Adjust campaign parameters to estimate impact before committing budget*")
+
+    sim_c1, sim_c2, sim_c3 = st.columns(3)
+    with sim_c1:
+        sim_customers = st.slider(
+            "Customers Targeted", min_value=100, max_value=2498, value=2498, step=50
+        )
+    with sim_c2:
+        sim_cost = st.slider(
+            "Campaign Cost Per Customer ($)", min_value=0.50, max_value=15.00,
+            value=8.50, step=0.50
+        )
+    with sim_c3:
+        sim_save_rate = st.slider(
+            "Expected Save Rate (%)", min_value=5, max_value=40, value=20, step=5
+        )
+
+    # Compute outcomes
+    _customers_saved = int(sim_customers * sim_save_rate / 100)
+    _avg_rev_per_cust = 3.50 * 52 * 0.25   # $3.50/item × ~52 items/yr × 25% at risk
+    _rev_protected    = _customers_saved * _avg_rev_per_cust
+    _total_cost       = sim_customers * sim_cost
+    _net_roi          = ((_rev_protected - _total_cost) / _total_cost * 100) if _total_cost > 0 else 0
+
+    sim_m1, sim_m2, sim_m3 = st.columns(3)
+    sim_m1.metric("Customers Saved",    f"{_customers_saved:,}")
+    sim_m2.metric("Revenue Protected",  fc(_rev_protected))
+    sim_m3.metric("Net ROI",            f"{_net_roi:,.0f}%")
+
+    # Campaign Cost vs Revenue Protected bar chart
+    _sim_bar = pd.DataFrame({
+        "Metric": ["Campaign Cost", "Revenue Protected"],
+        "Value":  [_total_cost, _rev_protected],
+    })
+    fig_sim = px.bar(
+        _sim_bar, x="Metric", y="Value", text="Value",
+        color="Metric",
+        color_discrete_map={"Campaign Cost": "#e74c3c", "Revenue Protected": "#27ae60"},
+    )
+    fig_sim.update_traces(texttemplate="$%{text:,.0f}", textposition="outside")
+    chart_layout(fig_sim, height=320)
+    fig_sim.update_yaxes(title="Amount ($)")
+    st.plotly_chart(fig_sim, width=700)
+
+    # Colour-coded result box
+    if _net_roi > 500:
+        _res_bg, _res_border, _res_icon = "#f0fff4", "#27ae60", "✅"
+        _res_msg = "Excellent ROI — campaign is well justified."
+    elif _net_roi >= 100:
+        _res_bg, _res_border, _res_icon = "#fffbf0", "#e65100", "⚠️"
+        _res_msg = "Acceptable ROI — consider targeting higher-value segments."
+    else:
+        _res_bg, _res_border, _res_icon = "#fff5f5", "#e74c3c", "🚨"
+        _res_msg = "Poor ROI — re-evaluate targeting parameters before spend."
+
+    st.markdown(f"""
+    <div style="background:{_res_bg};border-left:4px solid {_res_border};border-radius:6px;
+                padding:14px 18px;margin:12px 0;font-size:0.95rem;">
+      <b>{_res_icon} Campaign Result:</b> {_res_msg}
+      Net ROI of <b>{_net_roi:,.0f}%</b> on {sim_customers:,} customers targeted,
+      {_customers_saved:,} saved at ${sim_cost:.2f}/customer.
+    </div>
+    """, unsafe_allow_html=True)
 
 # ============================================================
 # PAGE 4 — Category Exposure
