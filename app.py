@@ -209,9 +209,11 @@ if page == "Executive Dashboard":
     _TOTAL_MODELLED = 175072
 
     # Compute KPI values from already-loaded data
-    _high_risk_n    = len(risk) if len(risk) > 0 else 0
+    # FIX 1: high-risk = rows where P_churn >= 0.5 (not total file length)
+    _high_risk_n    = int((risk["P_churn"] >= 0.5).sum()) if (len(risk) > 0 and "P_churn" in risk.columns) else 0
     _high_risk_pct  = _high_risk_n / _TOTAL_MODELLED * 100
 
+    # FIX 2: avg churn prob from P_churn mean, displayed as percentage
     _avg_churn_prob = 0.0
     if len(risk) > 0 and "P_churn" in risk.columns:
         _avg_churn_prob = float(risk["P_churn"].mean())
@@ -232,7 +234,7 @@ if page == "Executive Dashboard":
     k1.metric("Total Customers Analyzed",  f"{_TOTAL_MODELLED:,}")
     k2.metric("High-Risk Customers",       f"{_high_risk_n:,}")
     k3.metric("High-Risk %",               f"{_high_risk_pct:.1f}%")
-    k4.metric("Avg Churn Probability",     f"{_avg_churn_prob:.3f}")
+    k4.metric("Avg Churn Probability",     f"{_avg_churn_prob * 100:.1f}%")
 
     # Row 2 — 3 cards
     k5, k6, k7 = st.columns(3)
