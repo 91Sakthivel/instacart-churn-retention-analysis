@@ -1,0 +1,217 @@
+version: 2
+
+models:
+  - name: mart_retention_priority
+    description: >
+      The working list for the retention and customer success teams.
+      Contains Critical and High risk customers only — sorted by risk_score
+      descending so the highest-priority targets are always at the top.
+
+      This is what you hand to the team running interventions. Medium and Low
+      risk customers are excluded intentionally: the ROI modelling showed that
+      sending $11 discounts to Type C customers wastes ~$980K per campaign cycle.
+
+      Refreshes on each dbt run, so it always reflects the latest model scores.
+    columns:
+      - name: user_id
+        description: Unique customer identifier.
+        data_tests:
+          - unique
+          - not_null
+      - name: segment
+        description: RFM segment — Champions, Loyal, At Risk, or Lost.
+      - name: trajectory_type
+        description: >
+          Trajectory type (A/B/C/D). Determines which intervention to use:
+          B = personal outreach within 48h, D = loyalty reward,
+          A = product discount, C = light touch only.
+      - name: risk_tier
+        description: >
+          Business-friendly risk bucket. Critical = risk_score >= 0.7,
+          High = >= 0.4, Medium = >= 0.2, Low = below 0.2.
+          This mart contains Critical and High only.
+      - name: risk_score
+        description: Composite risk score (churn_probability × predicted_revenue_loss). Used to rank customers.
+      - name: churn_probability
+        description: Model-predicted probability of churning (0.0–1.0).
+      - name: predicted_revenue_loss
+        description: Predicted revenue loss in dollars if this customer churns.
+      - name: revenue_at_risk_90d
+        description: >
+          90-day revenue at risk estimate based on basket size and order frequency.
+          Calculated without using any gap features to avoid leakage.
+      - name: avg_days_between_orders
+        description: Customer's average order gap in days. Higher = less frequent orderer.
+      - name: reorder_rate
+        description: Fraction of this customer's items that were reorders. Key churn predictor.
+
+  - name: mart_segment_summary
+    description: >
+      Executive summary table — one row per segment × trajectory_type × risk_tier.
+      Built for the top-level charts in the Streamlit dashboard and for ad-hoc
+      analysis by stakeholders who want to understand where churn risk is concentrated.
+
+      Example questions this answers:
+      - How many High-risk Champions customers do we have?
+      - What is the total predicted revenue loss across Type B Sudden Stop customers?
+      - Which RFM segment has the lowest average reorder rate?
+
+      trajectory_type is NULL for customers with fewer than 10 orders — those rows
+      are included so you can see the full population, not just classified customers.
+    columns:
+      - name: segment
+        description: RFM segment (Champions, Loyal, At Risk, Lost).
+      - name: trajectory_type
+        description: Trajectory type (A/B/C/D) or NULL for customers with fewer than 10 orders.
+      - name: risk_tier
+        description: Risk tier bucket (Critical, High, Medium, Low).
+      - name: n_customers
+        description: Number of customers in this segment × trajectory × risk_tier combination.
+      - name: avg_churn_probability
+        description: Average XGBoost-predicted churn probability for this group.
+      - name: avg_risk_score
+        description: Average composite risk score for this group.
+      - name: total_predicted_revenue_loss
+        description: Total predicted revenue at risk across all customers in this group.
+      - name: avg_reorder_rate
+        description: Average reorder rate for this group. Useful for benchmarking engagement.
+
+  - name: dim_segment
+    description: >
+      Dimension table for the four RFM segments — one row per segment.
+      Stable reference table for BI tools and dashboards. Contains human-readable
+      descriptions, intervention priority, and the recommended action for each segment.
+      Customer counts are pulled live from stg_rfm_segments on each dbt run.
+    columns:
+      - name: segment
+        description: Segment name — Champions, Loyal, At Risk, or Lost.
+      - name: segment_description
+        description: Plain English description of what customers in this segment look like.
+      - name: intervention_priority
+        description: How urgently to act on this segment — High, Medium, or Low.
+      - name: recommended_action
+        description: One-line guidance for the retention team on what to do with this segment.
+      - name: n_customers
+        description: Number of customers currently in this segment (live from stg_rfm_segments).
+
+  - name: dim_trajectory
+    description: >
+      Dimension table for the four customer trajectory types — one row per type.
+      Drives the Intervention & ROI page in the Streamlit dashboard.
+      Contains all the financial parameters for intervention modelling:
+      offer costs, recovery rates, ROI percentages, and timing windows.
+      These figures come from the validated pipeline (05b_trajectory.py)
+      and the Monday morning executive summary.
+    columns:
+      - name: trajectory_type
+        description: Single-letter code — A, B, C, or D.
+      - name: trajectory_name
+        description: Human-readable name — Fading Frequency, Sudden Stop, High Value Drifting, Low Loyalty.
+      - name: churn_probability
+        description: Empirical churn rate for this trajectory group, used as the group-level probability.
+      - name: recommended_offer
+        description: The intervention type recommended for this trajectory (phone call, loyalty reward, etc.).
+      - name: offer_cost
+        description: Cost per customer of the recommended intervention, in dollars.
+      - name: recovery_rate
+        description: >
+          Estimated fraction of at-risk customers who will be retained if the intervention is applied.
+          Stored as a decimal (e.g. 0.40 = 40%). Used to compute estimated_save_value in fact_customer_risk.
+      - name: roi_pct
+        description: Return on investment as a percentage (e.g. 3820 = 3820% ROI on the offer spend).
+      - name: intervention_window
+        description: When to trigger the intervention — the timing constraint for each trajectory type.
+      - name: n_customers
+        description: Number of customers currently in this trajectory type (live from stg_trajectory_segments).
+
+  - name: dim_department
+    description: >
+      Dimension table for the 21 product departments — one row per department.
+      Drives the Category Exposure page in the Streamlit dashboard.
+      Shows the 60-day revenue at risk per department, Pareto tier (top 7 = Core Risk),
+      and the share of each department's at-risk revenue from Champions customers.
+      Total cross-department 60-day exposure: $626,303. Produce is most exposed at $183,384.
+    columns:
+      - name: department_name
+        description: Product department name (e.g. produce, dairy eggs, beverages).
+      - name: risk_60d
+        description: Total 60-day revenue at risk for this department, in dollars.
+      - name: risk_tier
+        description: >
+          Pareto tier. Top 7 departments by risk = 'Core Risk' (~80% of total exposure).
+          Remaining 14 departments = 'Standard'.
+      - name: champions_share_pct
+        description: >
+          Percentage of this department's at-risk revenue attributable to Champions-segment customers.
+          High values mean losing even a few Champions would disproportionately hurt this category.
+      - name: n_customers
+        description: Number of at-risk customers whose primary department is this one.
+      - name: pct_of_total_risk
+        description: This department's share of total cross-department 60-day revenue at risk.
+      - name: dept_rank
+        description: Rank by 60-day risk exposure — 1 = highest risk department (produce).
+
+  - name: fact_customer_risk
+    description: >
+      Central fact table — one row per customer (175,072 total).
+      The single source of truth for the Streamlit dashboard and any BI tool
+      connected to BigQuery. Combines behavioral features, model scores, RFM
+      segment labels, and trajectory intervention parameters into one wide table.
+
+      Key computed column — estimated_save_value:
+        predicted_revenue_loss × recovery_rate
+      This is the expected dollar return per customer if the recommended
+      intervention is applied and succeeds at the modelled recovery rate.
+      NULL for customers with fewer than 10 orders (no trajectory classification).
+    columns:
+      - name: user_id
+        description: Unique customer identifier. Primary key.
+      - name: avg_days_between_orders
+        description: Mean gap in days between orders. Key churn signal.
+      - name: order_count
+        description: Total lifetime orders placed by this customer.
+      - name: reorder_rate
+        description: Fraction of items that were reorders. Strongest single churn predictor in the model.
+      - name: gap_trend
+        description: late_avg_gap_clean minus early_avg_gap. Positive = ordering less frequently over time.
+      - name: churn_label
+        description: Actual churn outcome (0 = active, 1 = churned). The model's target variable.
+      - name: revenue_at_risk_90d
+        description: 90-day revenue at risk estimate (basket-based, no gap dependency).
+      - name: churn_probability
+        description: Empirical churn probability from trajectory group (proxy for XGBoost score).
+      - name: predicted_revenue_loss
+        description: Expected dollar revenue lost if this customer churns.
+      - name: risk_score
+        description: Equals churn_probability. Used to rank customers and assign risk_tier.
+      - name: risk_tier
+        description: Business-friendly tier — Critical (≥0.7), High (≥0.4), Medium (≥0.2), Low.
+      - name: segment
+        description: RFM segment — Champions, Loyal, At Risk, Lost.
+      - name: rfm_score
+        description: Combined RFM score 3–12. Higher = more valuable customer.
+      - name: segment_description
+        description: Plain English description of the customer's RFM segment.
+      - name: intervention_priority
+        description: Intervention urgency from dim_segment — High, Medium, or Low.
+      - name: recommended_action
+        description: One-line action for the retention team based on this customer's segment.
+      - name: trajectory_type
+        description: Trajectory type code (A/B/C/D). NULL for customers with fewer than 10 orders.
+      - name: trajectory_name
+        description: Human-readable trajectory label (Fading Frequency, Sudden Stop, etc.).
+      - name: recommended_offer
+        description: Intervention type to apply to this customer based on trajectory.
+      - name: offer_cost
+        description: Dollar cost of the recommended intervention for this customer.
+      - name: recovery_rate
+        description: Estimated fraction of customers like this who will be retained after intervention.
+      - name: roi_pct
+        description: ROI percentage for this customer's intervention type.
+      - name: intervention_window
+        description: When to trigger the intervention for this customer's trajectory type.
+      - name: estimated_save_value
+        description: >
+          Expected dollar value recovered if intervention succeeds:
+          predicted_revenue_loss × recovery_rate.
+          NULL for customers with no trajectory classification.

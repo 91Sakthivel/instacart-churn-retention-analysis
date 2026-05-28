@@ -1,0 +1,122 @@
+version: 2
+
+sources:
+  - name: instacart_raw
+    description: >
+      Raw tables loaded from the Instacart analytics pipeline into BigQuery.
+      These were produced by the Python pipeline (scripts 01–09) and cover
+      206,209 customers across the full order history dataset.
+    database: windy-container-451804-n4
+    schema: instacart_raw
+
+    tables:
+      - name: customer_features
+        description: >
+          One row per customer (175,072 total) who placed at least 5 orders.
+          Contains the behavioral features used to train the churn model —
+          gap metrics, reorder rate, order counts, and revenue estimates.
+          Customers with fewer than 5 orders were excluded from modeling
+          and are not in this table.
+        columns:
+          - name: user_id
+            description: Unique customer identifier. Primary key for this table.
+          - name: avg_days_between_orders
+            description: Mean number of days between all consecutive orders for this customer.
+          - name: order_gap_std
+            description: Standard deviation of the between-order gaps. High values mean erratic ordering patterns.
+          - name: order_gap_cv
+            description: >
+              Coefficient of variation (std / mean) for order gaps. Normalises gap variability
+              across customers who order at very different frequencies.
+          - name: early_avg_gap
+            description: Average gap for the customer's first three orders. Captures their baseline ordering cadence.
+          - name: late_avg_gap_clean
+            description: >
+              Average gap for orders ranked 2–4 from the end (most recent excluded).
+              The most recent gap is excluded because it equals days_since_last_order,
+              which is the churn label — including it would leak the answer into the features.
+          - name: order_count
+            description: Total number of orders placed by this customer.
+          - name: gap_trend
+            description: >
+              late_avg_gap_clean minus early_avg_gap. Positive values mean the customer is
+              ordering less frequently over time. This is the primary temporal churn signal.
+          - name: reorder_rate
+            description: >
+              Fraction of items this customer ordered that were reorders of a previously
+              purchased product. Active customers average ~53%; churned customers ~43%.
+          - name: churn_label
+            description: >
+              Binary churn outcome. 1 = churned (final order gap >= 30 days and order_count >= 5).
+              0 = active. This is the target variable the model was trained to predict.
+          - name: revenue_at_risk_90d
+            description: >
+              Estimated revenue at risk over 90 days, calculated as
+              avg_basket_size × annual_orders_est × 0.25. Uses item count × $3.50 as a
+              revenue proxy since the source dataset has no price data.
+          - name: annual_value_est
+            description: Estimated annual revenue from this customer based on order frequency and basket size.
+
+      - name: rfm_segments
+        description: >
+          RFM (Recency, Frequency, Monetary) scoring for all 206,209 customers,
+          including those with fewer than 5 orders who were excluded from the
+          churn model. Segments were assigned using quartile-based scoring.
+        columns:
+          - name: user_id
+            description: Unique customer identifier. Primary key for this table.
+          - name: segment
+            description: >
+              RFM segment label: Champions (best customers), Loyal (frequent but not top spenders),
+              At Risk (previously active, now quiet), or Lost (low on all three dimensions).
+          - name: r_score
+            description: Recency score 1–4. 4 = ordered very recently, 1 = not ordered in a long time.
+          - name: f_score
+            description: Frequency score 1–4. 4 = very frequent orderer, 1 = rarely orders.
+          - name: m_score
+            description: Monetary score 1–4. 4 = highest basket value, 1 = smallest baskets.
+          - name: rfm_score
+            description: Combined RFM score (r + f + m). Ranges from 3 to 12. Higher = more valuable customer.
+
+      - name: trajectory_segments
+        description: >
+          Trajectory classification for customers with 10+ orders (107,438 customers).
+          Each customer is assigned to one of four trajectory types based on their
+          ordering pattern — whether they're drifting away gradually, stopped suddenly,
+          fading in frequency, or were never highly engaged.
+        columns:
+          - name: user_id
+            description: Unique customer identifier.
+          - name: trajectory_type
+            description: >
+              One of four types: B = Sudden Stop (was frequent, then stopped abruptly),
+              D = High Value Drifting (loyal customer with growing gaps),
+              A = Fading Frequency (order gaps steadily widening),
+              C = Low Loyalty (never showed strong engagement).
+          - name: churn_probability
+            description: Model-predicted probability of churn, from 0.0 to 1.0.
+          - name: predicted_revenue_loss
+            description: Predicted revenue loss if this customer churns, in dollars.
+          - name: risk_score
+            description: >
+              Composite risk score = churn_probability × predicted_revenue_loss.
+              Used to prioritise which customers to target first.
+
+      - name: category_risk_report
+        description: >
+          Department-level revenue risk summary. 21 rows, one per department.
+          Shows how much of the 60-day projected revenue at risk is concentrated
+          in each product department, and how that risk breaks down by RFM segment.
+        columns:
+          - name: department
+            description: Product department name (e.g. produce, dairy eggs, beverages).
+          - name: dept_total_risk
+            description: Total 60-day revenue at risk for this department, in dollars.
+          - name: Champions
+            description: Share of this department's risk that comes from Champions segment customers.
+          - name: Loyal
+            description: Share of this department's risk that comes from Loyal segment customers.
+          - name: n_customers
+            description: Number of at-risk customers who shop primarily in this department.
+          - name: pct_of_total_risk
+            description: This department's risk as a percentage of total cross-department risk.

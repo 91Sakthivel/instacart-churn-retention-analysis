@@ -1,0 +1,118 @@
+version: 2
+
+models:
+  - name: stg_customer_features
+    description: >
+      Staged behavioral features for 175,072 customers who placed at least 5 orders.
+      These are the features the XGBoost churn model was trained on (AUC = 0.9059).
+      days_since_last_order is intentionally excluded — it IS the churn label and
+      including it would leak the answer into any downstream model.
+    columns:
+      - name: user_id
+        description: Unique customer identifier. One row per customer.
+        data_tests:
+          - unique
+          - not_null
+      - name: avg_days_between_orders
+        description: Mean gap in days between all consecutive orders for this customer.
+        data_tests:
+          - not_null
+      - name: order_gap_std
+        description: Standard deviation of the customer's between-order gaps.
+      - name: order_gap_cv
+        description: Coefficient of variation of gaps (std / mean). Measures ordering regularity.
+      - name: early_avg_gap
+        description: Average gap for the first three orders. Baseline ordering cadence.
+      - name: late_avg_gap_clean
+        description: >
+          Average gap for orders ranked 2–4 from most recent. Rank 1 (most recent gap)
+          is excluded because it equals days_since_last_order — the churn label.
+      - name: order_count
+        description: Total number of orders this customer has placed.
+      - name: gap_trend
+        description: >
+          late_avg_gap_clean minus early_avg_gap. Positive = ordering less frequently
+          over time. The primary temporal signal in the churn model.
+      - name: reorder_rate
+        description: >
+          Fraction of items that were reorders of a previously purchased product.
+          Active customers average ~53%; churned customers ~43%.
+      - name: churn_label
+        description: >
+          Binary target variable. 1 = churned (last gap >= 30 days, order_count >= 5).
+          0 = still active.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+      - name: revenue_at_risk_90d
+        description: >
+          Estimated 90-day revenue at risk = avg_basket_size × annual_orders_est × 0.25.
+          Revenue proxy uses $3.50 per item (no price data in the source dataset).
+      - name: annual_value_est
+        description: Estimated annual revenue value from this customer.
+
+  - name: stg_rfm_segments
+    description: >
+      RFM scoring for all 206,209 customers. Includes customers excluded from the
+      churn model (fewer than 5 orders). Scores are quartile-based (1–4 per dimension).
+    columns:
+      - name: user_id
+        description: Unique customer identifier. One row per customer.
+        data_tests:
+          - unique
+          - not_null
+      - name: segment
+        description: >
+          RFM segment: Champions (high on all three), Loyal (frequent, good recency),
+          At Risk (active history but going quiet), Lost (low engagement across all dimensions).
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['Champions', 'Loyal', 'At Risk', 'Lost']
+      - name: r_score
+        description: Recency score 1–4. 4 = ordered very recently.
+      - name: f_score
+        description: Frequency score 1–4. 4 = orders very frequently.
+      - name: m_score
+        description: Monetary score 1–4. 4 = highest basket value.
+      - name: rfm_score
+        description: Sum of r + f + m scores. Range 3–12. Higher = more valuable customer.
+
+  - name: stg_trajectory_segments
+    description: >
+      Trajectory type and model-scored risk for customers with 10+ orders (107,438).
+      Customers below 10 orders are not in this table and will appear as NULLs
+      when joined to customer features in the intermediate layer.
+    columns:
+      - name: user_id
+        description: Unique customer identifier.
+        data_tests:
+          - unique
+          - not_null
+      - name: trajectory_type
+        description: >
+          Customer behaviour pattern: B = Sudden Stop, D = High Value Drifting,
+          A = Fading Frequency, C = Low Loyalty.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['A', 'B', 'C', 'D']
+      - name: churn_probability
+        description: >
+          Empirical churn rate for this customer's trajectory group, used as a
+          per-customer churn probability proxy. Rates are from validated analysis:
+          A=44.5%, B=35.0%, D=22.3%, C=14.9%. Per-customer XGBoost scores from
+          the Python pipeline were not loaded to this BigQuery table.
+      - name: predicted_revenue_loss
+        description: >
+          Expected annual revenue loss: annual_value × churn_probability.
+          Represents the revenue at risk if this customer follows the typical
+          churn pattern for their trajectory type.
+      - name: risk_score
+        description: >
+          Equals churn_probability (bounded [0,1]). Kept on a probability scale so
+          the risk_tier CASE thresholds (0.7 / 0.4 / 0.2) in int_customer_risk
+          produce meaningful tier splits. Dollar exposure is captured separately
+          in predicted_revenue_loss.

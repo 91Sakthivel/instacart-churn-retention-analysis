@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: int_customer_risk
+    description: >
+      Joins customer behavioral features, RFM segments, and trajectory
+      classifications into a single risk view. Adds risk_tier column
+      (Critical/High/Medium/Low) based on risk score thresholds.
