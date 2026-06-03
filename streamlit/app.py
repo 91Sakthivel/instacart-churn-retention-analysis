@@ -201,6 +201,13 @@ with st.sidebar:
 if page == "Executive Dashboard":
     st.title("Instacart Revenue Protection — Executive View")
 
+    exec_view = st.selectbox(
+        "View mode",
+        ["All Sections", "Finance View"],
+        key="exec_view",
+        help="Finance View: revenue impact and cost-benefit numbers only — no segment charts.",
+    )
+
     # --- Executive KPI Scorecard ---
     st.subheader("Executive KPI Scorecard")
     st.markdown("*Live metrics from the retention analytics pipeline*")
@@ -243,50 +250,51 @@ if page == "Executive Dashboard":
     k6.metric("Est. Customers Saved",      f"{int(_est_saved):,}")
     k7.metric("Est. Revenue Protected",    fc(_est_rev))
 
-    st.markdown("---")
+    if exec_view == "All Sections":
+        st.markdown("---")
 
-    # --- Two charts side by side ---
-    col_l, col_r = st.columns(2)
+        # --- Two charts side by side ---
+        col_l, col_r = st.columns(2)
 
-    with col_l:
-        st.subheader("RFM Segment Distribution")
-        if len(rfm) > 0 and "segment" in rfm.columns:
-            seg_cnt = rfm["segment"].value_counts().reset_index()
-            seg_cnt.columns = ["Segment", "Customers"]
-            fig = px.bar(
-                seg_cnt, x="Segment", y="Customers",
-                color_discrete_sequence=[ACCENT], text="Customers",
-            )
-            fig.update_traces(texttemplate="%{text:,}", textposition="outside")
-            chart_layout(fig)
-            fig.update_yaxes(title="")
-            st.plotly_chart(fig, width=700)
-        else:
-            st.info("rfm_segments.csv not loaded.")
+        with col_l:
+            st.subheader("RFM Segment Distribution")
+            if len(rfm) > 0 and "segment" in rfm.columns:
+                seg_cnt = rfm["segment"].value_counts().reset_index()
+                seg_cnt.columns = ["Segment", "Customers"]
+                fig = px.bar(
+                    seg_cnt, x="Segment", y="Customers",
+                    color_discrete_sequence=[ACCENT], text="Customers",
+                )
+                fig.update_traces(texttemplate="%{text:,}", textposition="outside")
+                chart_layout(fig)
+                fig.update_yaxes(title="")
+                st.plotly_chart(fig, width=700)
+            else:
+                st.info("rfm_segments.csv not loaded.")
 
-    with col_r:
-        st.subheader("Trajectory Type — Churn Rate")
-        if len(traj) > 0 and "trajectory_type" in traj.columns and "churned" in traj.columns:
-            tt = (
-                traj.groupby("trajectory_type")
-                .agg(customers=("user_id", "count"), churn_pct=("churned", "mean"))
-                .reset_index()
-            )
-            tt["churn_pct"] = tt["churn_pct"] * 100
-            tt["label"] = tt["trajectory_type"].map(T_LABELS).fillna(tt["trajectory_type"])
-            tt["_ord"] = tt["trajectory_type"].map({"B": 0, "D": 1, "A": 2, "C": 3}).fillna(9)
-            tt = tt.sort_values("_ord")
-            fig2 = px.bar(
-                tt, x="label", y="churn_pct", text="churn_pct",
-                color="trajectory_type",
-                color_discrete_map=C_TRAJ,
-            )
-            fig2.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-            chart_layout(fig2)
-            fig2.update_yaxes(title="Churn Rate (%)")
-            st.plotly_chart(fig2, width=700)
-        else:
-            st.info("trajectory_segments.csv not loaded.")
+        with col_r:
+            st.subheader("Trajectory Type — Churn Rate")
+            if len(traj) > 0 and "trajectory_type" in traj.columns and "churned" in traj.columns:
+                tt = (
+                    traj.groupby("trajectory_type")
+                    .agg(customers=("user_id", "count"), churn_pct=("churned", "mean"))
+                    .reset_index()
+                )
+                tt["churn_pct"] = tt["churn_pct"] * 100
+                tt["label"] = tt["trajectory_type"].map(T_LABELS).fillna(tt["trajectory_type"])
+                tt["_ord"] = tt["trajectory_type"].map({"B": 0, "D": 1, "A": 2, "C": 3}).fillna(9)
+                tt = tt.sort_values("_ord")
+                fig2 = px.bar(
+                    tt, x="label", y="churn_pct", text="churn_pct",
+                    color="trajectory_type",
+                    color_discrete_map=C_TRAJ,
+                )
+                fig2.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+                chart_layout(fig2)
+                fig2.update_yaxes(title="Churn Rate (%)")
+                st.plotly_chart(fig2, width=700)
+            else:
+                st.info("trajectory_segments.csv not loaded.")
 
     st.markdown("---")
 
@@ -311,6 +319,48 @@ if page == "Executive Dashboard":
         st.dataframe(disp, width=700, hide_index=True)
     else:
         st.info("risk_ranked_top5k.csv not loaded.")
+
+    # --- Finance View: Revenue Impact Summary ---
+    if exec_view == "Finance View":
+        st.markdown("---")
+        st.subheader("Revenue Impact by Trajectory Type")
+        st.markdown("*Intervention budget, projected recovery, and net return per segment*")
+        _FIN_COSTS  = {"A": 11.00, "B": 15.00, "D": 8.50,  "C": 0.50}
+        _FIN_LABELS = {"A": "Fading Frequency", "B": "Sudden Stop",
+                       "D": "High-Value Drifting", "C": "Low Loyalty"}
+        if len(roi) > 0 and "trajectory_type" in roi.columns:
+            _fin = roi.copy()
+            _fin["Segment"]         = _fin["trajectory_type"].map(_FIN_LABELS).fillna(_fin["trajectory_type"])
+            _fin["Customers"]       = _fin["n_customers"].map(lambda x: f"{int(x):,}")
+            _fin["Cost / Customer"] = _fin["trajectory_type"].map(
+                                          lambda t: f"${_FIN_COSTS.get(t, 0):.2f}")
+            _fin["Total Budget"]    = (
+                                          _fin["n_customers"]
+                                          * _fin["trajectory_type"].map(_FIN_COSTS)
+                                      ).map(lambda x: f"${x:,.0f}")
+            _fin["Est. Rev Saved"]  = _fin["total_revenue_saved"].map(
+                                          lambda x: f"${float(x):,.0f}")
+            _fin["Net Benefit"]     = (
+                                          _fin["total_revenue_saved"] - _fin["total_offer_cost"]
+                                      ).map(lambda x: f"${float(x):,.0f}")
+            _fin["Avg ROI"]         = _fin["avg_ROI_pct"].map(lambda x: f"{float(x):,.0f}%")
+            _ord_map = {"B": 0, "D": 1, "A": 2, "C": 3}
+            _fin["_o"] = _fin["trajectory_type"].map(_ord_map).fillna(9)
+            _fin = _fin.sort_values("_o")
+            st.dataframe(
+                _fin[["Segment", "Customers", "Cost / Customer",
+                      "Total Budget", "Est. Rev Saved", "Net Benefit", "Avg ROI"]],
+                width=800, hide_index=True,
+            )
+            _total_budget  = (_fin["n_customers"] * _fin["trajectory_type"].map(_FIN_COSTS)).sum()
+            _total_saved   = float(_fin["total_revenue_saved"].sum())
+            _total_net     = _total_saved - float(_fin["total_offer_cost"].sum())
+            fb1, fb2, fb3 = st.columns(3)
+            fb1.metric("Total Campaign Budget",   fc(_total_budget))
+            fb2.metric("Total Est. Rev Saved",    fc(_total_saved))
+            fb3.metric("Total Net Benefit",       fc(_total_net))
+        else:
+            st.info("retention_roi.csv not loaded — run pipeline/05b_trajectory.py.")
 
 # ============================================================
 # PAGE 2 — Business Findings & Recommendations
@@ -514,6 +564,13 @@ elif page == "Customer Risk Explorer":
         st.warning("Risk data not available. Run pipeline/08_churn_model.py first.")
         st.stop()
 
+    mktg_view = st.selectbox(
+        "View mode",
+        ["Default View", "Marketing View"],
+        key="mktg_view",
+        help="Marketing View: campaign actions and budget per segment — no raw probability scores.",
+    )
+
     # --- Sidebar filters ---
     with st.sidebar:
         st.markdown("### Filters")
@@ -540,33 +597,105 @@ elif page == "Customer Risk Explorer":
 
     st.markdown("---")
 
-    # --- Filtered table ---
-    want = ["user_id", "trajectory_type", "rfm_segment", "P_churn", "predicted_loss", "risk_score"]
-    show_cols = [c for c in want if c in filtered.columns]
-    show = filtered[show_cols].head(500).copy()
-    show = show.rename(columns={
-        "user_id": "User ID", "trajectory_type": "Trajectory",
-        "rfm_segment": "RFM Segment", "P_churn": "P(Churn)",
-        "predicted_loss": "Predicted Loss ($)", "risk_score": "Risk Score ($)",
-    })
-    if "P(Churn)" in show.columns:
-        show["P(Churn)"] = show["P(Churn)"].map(lambda x: f"{x:.3f}")
-    for col in ["Predicted Loss ($)", "Risk Score ($)"]:
-        if col in show.columns:
-            show[col] = show[col].map(fc)
+    if mktg_view == "Default View":
+        # --- Filtered table ---
+        want = ["user_id", "trajectory_type", "rfm_segment", "P_churn", "predicted_loss", "risk_score"]
+        show_cols = [c for c in want if c in filtered.columns]
+        show = filtered[show_cols].head(500).copy()
+        show = show.rename(columns={
+            "user_id": "User ID", "trajectory_type": "Trajectory",
+            "rfm_segment": "RFM Segment", "P_churn": "P(Churn)",
+            "predicted_loss": "Predicted Loss ($)", "risk_score": "Risk Score ($)",
+        })
+        if "P(Churn)" in show.columns:
+            show["P(Churn)"] = show["P(Churn)"].map(lambda x: f"{x:.3f}")
+        for col in ["Predicted Loss ($)", "Risk Score ($)"]:
+            if col in show.columns:
+                show[col] = show[col].map(fc)
 
-    st.dataframe(show, width=700, hide_index=True)
-    if len(filtered) > 500:
-        st.caption(f"Showing top 500 of {len(filtered):,} filtered customers.")
+        st.dataframe(show, width=700, hide_index=True)
+        if len(filtered) > 500:
+            st.caption(f"Showing top 500 of {len(filtered):,} filtered customers.")
 
-    # --- Download ---
-    csv_bytes = filtered[show_cols].to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label="Download filtered results as CSV",
-        data=csv_bytes,
-        file_name="at_risk_customers_filtered.csv",
-        mime="text/csv",
-    )
+        # --- Download ---
+        csv_bytes = filtered[show_cols].to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="Download filtered results as CSV",
+            data=csv_bytes,
+            file_name="at_risk_customers_filtered.csv",
+            mime="text/csv",
+        )
+
+    else:  # Marketing View
+        _MKTG_ACTIONS = {
+            "B": "Phone call within 48h",
+            "D": "Loyalty reward",
+            "A": "Product discount",
+            "C": "Push notification",
+        }
+        _MKTG_COSTS = {"B": 15.00, "D": 8.50, "A": 11.00, "C": 0.50}
+
+        # --- Campaign breakdown by trajectory type ---
+        st.subheader("Campaign Breakdown by Trajectory Type")
+        if "trajectory_type" in filtered.columns:
+            _camp = (
+                filtered.groupby("trajectory_type", sort=False)
+                .agg(n_customers=("user_id", "count"))
+                .reset_index()
+            )
+            _camp["Type"]            = _camp["trajectory_type"].map(T_LABELS).fillna(_camp["trajectory_type"])
+            _camp["Suggested Action"]= _camp["trajectory_type"].map(_MKTG_ACTIONS).fillna("N/A")
+            _camp["Cost / Customer"] = _camp["trajectory_type"].map(
+                                           lambda t: f"${_MKTG_COSTS.get(t, 0):.2f}")
+            _camp["Total Budget"]    = (
+                                           _camp["n_customers"]
+                                           * _camp["trajectory_type"].map(_MKTG_COSTS)
+                                       ).map(lambda x: f"${x:,.0f}")
+            _camp["Customers"]       = _camp["n_customers"].map(lambda x: f"{int(x):,}")
+            _ord_m = {"B": 0, "D": 1, "A": 2, "C": 3}
+            _camp["_o"] = _camp["trajectory_type"].map(_ord_m).fillna(9)
+            _camp = _camp.sort_values("_o")
+            st.dataframe(
+                _camp[["Type", "Customers", "Suggested Action", "Cost / Customer", "Total Budget"]],
+                width=750, hide_index=True,
+            )
+            _total_budget = float(
+                (filtered["trajectory_type"].map(_MKTG_COSTS).fillna(0)).sum()
+            )
+            st.markdown(f"""
+            <div class="info-box">
+              <b>Total campaign budget for {len(filtered):,} filtered customers:</b>
+              &nbsp; {fc(_total_budget)}
+            </div>
+            """, unsafe_allow_html=True)
+
+        # --- Action list ---
+        st.markdown("---")
+        st.subheader("Action List")
+        st.caption("Simplified view: trajectory, segment, and suggested action only.")
+        _mktg_base_cols = ["user_id", "trajectory_type", "rfm_segment"]
+        _mktg_base_cols = [c for c in _mktg_base_cols if c in filtered.columns]
+        _mktg_show = filtered[_mktg_base_cols].head(500).copy()
+        _mktg_show["Suggested Action"] = (
+            filtered["trajectory_type"].head(500).map(_MKTG_ACTIONS).fillna("N/A").values
+        )
+        _mktg_show = _mktg_show.rename(columns={
+            "user_id": "User ID", "trajectory_type": "Trajectory",
+            "rfm_segment": "RFM Segment",
+        })
+        st.dataframe(_mktg_show, width=700, hide_index=True)
+        if len(filtered) > 500:
+            st.caption(f"Showing top 500 of {len(filtered):,} filtered customers.")
+
+        # --- Download ---
+        _mktg_dl = filtered[_mktg_base_cols].copy()
+        _mktg_dl["suggested_action"] = _mktg_dl["trajectory_type"].map(_MKTG_ACTIONS).fillna("N/A")
+        st.download_button(
+            label="Download marketing action list as CSV",
+            data=_mktg_dl.to_csv(index=False).encode("utf-8"),
+            file_name="marketing_action_list.csv",
+            mime="text/csv",
+        )
 
 # ============================================================
 # PAGE 3 — Intervention & ROI
@@ -734,6 +863,13 @@ elif page == "Category Exposure":
     st.title("Department Revenue Exposure")
     st.markdown("*Which product categories carry the most revenue risk from declining Champions and Loyal customers*")
 
+    ops_view = st.selectbox(
+        "View mode",
+        ["Default View", "Ops View"],
+        key="ops_view",
+        help="Ops View: Core Risk departments and residual watch-list — no full bar chart.",
+    )
+
     if len(cat_risk) > 0 and "dept_total_risk" in cat_risk.columns:
         total_risk  = cat_risk["dept_total_risk"].sum()
         top7_risk   = cat_risk.sort_values("dept_total_risk", ascending=False).head(7)["dept_total_risk"].sum()
@@ -746,21 +882,44 @@ elif page == "Category Exposure":
         e3.metric("Produce Share",                f"{prod_risk / total_risk * 100:.0f}% of total exposure")
 
         st.markdown("---")
-        st.subheader("60-Day Revenue at Risk by Department")
 
-        cat_sorted = cat_risk.sort_values("dept_total_risk", ascending=True).copy()
-        fig = px.bar(
-            cat_sorted, x="dept_total_risk", y="department",
-            orientation="h", text="dept_total_risk",
-            color="dept_total_risk",
-            color_continuous_scale=[[0, "#d6eaf8"], [1, ACCENT]],
-        )
-        fig.update_traces(texttemplate="$%{text:,.0f}", textposition="outside")
-        chart_layout(fig, height=max(380, len(cat_sorted) * 28))
-        fig.update_xaxes(title="60-Day Revenue at Risk ($)")
-        fig.update_yaxes(title="")
-        fig.update_coloraxes(showscale=False)
-        st.plotly_chart(fig, width=700)
+        if ops_view == "Default View":
+            st.subheader("60-Day Revenue at Risk by Department")
+            cat_sorted = cat_risk.sort_values("dept_total_risk", ascending=True).copy()
+            fig = px.bar(
+                cat_sorted, x="dept_total_risk", y="department",
+                orientation="h", text="dept_total_risk",
+                color="dept_total_risk",
+                color_continuous_scale=[[0, "#d6eaf8"], [1, ACCENT]],
+            )
+            fig.update_traces(texttemplate="$%{text:,.0f}", textposition="outside")
+            chart_layout(fig, height=max(380, len(cat_sorted) * 28))
+            fig.update_xaxes(title="60-Day Revenue at Risk ($)")
+            fig.update_yaxes(title="")
+            fig.update_coloraxes(showscale=False)
+            st.plotly_chart(fig, width=700)
+
+        else:  # Ops View
+            st.subheader("Core Risk Departments — Top 7 by Revenue Exposure")
+            st.caption("Departments accounting for ~80% of total 60-day revenue exposure.")
+            _top7  = cat_risk.sort_values("dept_total_risk", ascending=False).head(7).copy()
+            _rest  = cat_risk.sort_values("dept_total_risk", ascending=False).iloc[7:].copy()
+            _top7["60-Day Risk"]  = _top7["dept_total_risk"].map(lambda x: f"${x:,.0f}")
+            _top7["% of Total"]   = (_top7["dept_total_risk"] / total_risk * 100).map(
+                                        lambda x: f"{x:.1f}%")
+            _top7["Priority"]     = "Core Risk"
+            st.dataframe(
+                _top7[["department", "60-Day Risk", "% of Total", "Priority"]].rename(
+                    columns={"department": "Department"}),
+                width=600, hide_index=True,
+            )
+            if len(_rest) > 0:
+                _rest_total = _rest["dept_total_risk"].sum()
+                st.caption(
+                    f"Remaining {len(_rest)} departments: {fc(_rest_total)} combined "
+                    f"({_rest_total / total_risk * 100:.1f}% of total exposure) — Standard priority."
+                )
+
     else:
         st.info("category_risk_report.csv not available. Run pipeline/07_category_exposure.py first.")
 
@@ -780,6 +939,28 @@ elif page == "Category Exposure":
         show_dr = dr[["Department", "Customers", "Actual Churn %", "Predicted %", "Residual", "Status"]].copy()
         show_dr["Customers"] = show_dr["Customers"].map(lambda x: f"{int(x):,}")
         st.dataframe(show_dr, width=700, hide_index=True)
+
+        if ops_view == "Ops View" and "residual" in dept_res.columns:
+            _watch = dept_res[dept_res["residual"].abs() > 0.03].copy()
+            if len(_watch) > 0:
+                _watch_names = ", ".join(
+                    _watch.sort_values("residual", ascending=False)["primary_department"].tolist()
+                )
+                st.markdown(f"""
+                <div class="alert-box">
+                  <b>Watch List ({len(_watch)} department{'s' if len(_watch) != 1 else ''}):</b>
+                  {_watch_names} — residual exceeds 3pp. Investigate for operational issues
+                  or data quality before next model retrain.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background:#f0fff4;border-left:4px solid #27ae60;border-radius:6px;
+                            padding:12px 16px;margin:12px 0;font-size:0.93rem;">
+                  <b>All Clear:</b> No department residuals exceed 3pp.
+                  Churn is explained by behavioral signals across all categories.
+                </div>
+                """, unsafe_allow_html=True)
     else:
         st.info("department_residuals.csv not available.")
 
