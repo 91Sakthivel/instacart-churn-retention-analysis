@@ -1,0 +1,45 @@
+version: 2
+
+exposures:
+
+  - name: instacart_churn_streamlit_dashboard
+    type: dashboard
+    maturity: high
+    url: https://instacart-churn-retention-analysis-dashboard.streamlit.app/
+    description: >
+      7-page live Streamlit dashboard presenting churn predictions, customer
+      segments, retention ROI, and intervention playbook built on the
+      instacart_dbt mart layer. Used by business stakeholders to monitor
+      retention performance and allocate marketing spend.
+
+    depends_on:
+      - ref('fact_customer_risk')
+      - ref('mart_retention_priority')
+      - ref('mart_segment_summary')
+      - ref('dim_segment')
+      - ref('dim_trajectory')
+      - ref('dim_department')
+
+    owner:
+      name: Sakthivel Sivagurunathan
+      email: viswamitra234@gmail.com
+
+  - name: instacart_churn_powerbi_dashboard
+    type: dashboard
+    maturity: high
+    url: https://app.powerbi.com
+    description: >
+      Power BI dashboard connected via DirectQuery to BigQuery mart tables.
+      Provides executive-level KPI views of churn rate, retention spend
+      efficiency, and customer lifetime value segments for business reporting.
+
+    depends_on:
+      - ref('fact_customer_risk')
+      - ref('mart_retention_priority')
+      - ref('mart_segment_summary')
+      - ref('dim_segment')
+      - ref('dim_trajectory')
+
+    owner:
+      name: Sakthivel Sivagurunathan
+      email: viswamitra234@gmail.com
