@@ -183,6 +183,7 @@ with st.sidebar:
             "Category Exposure",
             "Model Performance",
             "Behavioral Monitor",
+            "Cohort Retention",
         ],
         label_visibility="collapsed",
     )
@@ -1100,3 +1101,65 @@ elif page == "Behavioral Monitor":
     chart_layout(fig_shift, height=420)
     fig_shift.update_layout(showlegend=True, legend_title_text="Snapshot 3 Tier")
     st.plotly_chart(fig_shift, width=700)
+
+# ============================================================
+# PAGE 8 — Cohort Retention
+# ============================================================
+elif page == "Cohort Retention":
+    st.title("Cohort Retention Analysis")
+    st.markdown(
+        "*How deeply do customers engage across their first 10 orders, "
+        "grouped by how frequently they shop?*"
+    )
+
+    COHORT_HEATMAP = _HERE / "cohort_heatmap.png"
+
+    st.markdown("---")
+
+    # --- Explanation ---
+    st.markdown("""
+    **How to read this chart:**
+    Each row is a cohort of customers grouped by their average ordering frequency
+    (days between orders). Each column is an order sequence number (1 through 10).
+    The value in each cell shows what percentage of that cohort placed **at least N orders**
+    over their lifetime — a proxy for how far into the customer journey each group travels.
+    """)
+
+    # --- Heatmap ---
+    if COHORT_HEATMAP.exists():
+        st.image(str(COHORT_HEATMAP), use_container_width=True)
+    else:
+        st.warning(
+            "cohort_heatmap.png not found. "
+            "Run `python pipeline/11_cohort_analysis.py` to generate it."
+        )
+
+    st.markdown("---")
+
+    # --- Key insight callout ---
+    st.markdown("""
+    <div style="background:#f0f7ff;border-left:4px solid #2980b9;border-radius:6px;
+                padding:18px 20px;margin:12px 0;font-size:0.95rem;line-height:1.7;">
+      <div style="font-weight:700;font-size:1.0rem;color:#2980b9;margin-bottom:8px;">
+        &#128202; Key Insight — Ordering Frequency Predicts Depth
+      </div>
+      <b>Very Frequent shoppers (≤7 days between orders)</b> retain at a dramatically
+      higher rate through all 10 order sequences than infrequent shoppers
+      (>21 days between orders). This gap widens with each successive order —
+      the further a customer advances in their sequence, the more the cohort
+      composition skews toward habitual, frequent buyers.<br><br>
+      <b>Implication for retention strategy:</b> interventions that increase ordering
+      cadence (nudging a "Moderate" customer toward "Frequent" behaviour) have a
+      compounding effect — they don't just recover one order, they shift the customer
+      into a higher-retention cohort for the remainder of their lifetime.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # --- Methodology note ---
+    st.caption(
+        "Cohorts built from customer_features.csv (175K customers, ≥5 lifetime orders). "
+        "Retention at order N = % of cohort with total order_count ≥ N. "
+        "Run pipeline/11_cohort_analysis.py to regenerate after pipeline updates."
+    )
