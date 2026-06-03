@@ -7,6 +7,7 @@ Here's the complete README in one block — copy everything between the lines:
 
 [![Streamlit](https://img.shields.io/badge/Live%20Dashboard-Streamlit-FF4B4B?style=flat&logo=streamlit)](https://instacart-churn-retention-analysis-dashboard.streamlit.app/)
 [![Power BI](https://img.shields.io/badge/Power%20BI-Live%20Report-F2C811?style=flat&logo=powerbi)](https://app.powerbi.com/links/phH_dmePJX?ctid=70de1992-07c6-480f-a318-a1afcba03983&pbi_source=linkShare)
+[![dbt Tests](https://github.com/91Sakthivel/instacart-churn-retention-analysis/actions/workflows/dbt_tests.yml/badge.svg)](https://github.com/91Sakthivel/instacart-churn-retention-analysis/actions/workflows/dbt_tests.yml)
 
 ---
 

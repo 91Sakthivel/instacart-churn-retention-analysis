@@ -1,0 +1,146 @@
+name: dbt Tests
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  dbt-test:
+    name: Run dbt Tests — instacart_dbt
+    runs-on: ubuntu-latest
+
+    steps:
+      # ----------------------------------------------------------------
+      # 1. Checkout & Python
+      # ----------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ----------------------------------------------------------------
+      # 2. Install dbt
+      # ----------------------------------------------------------------
+      - name: Install dbt-bigquery
+        run: pip install dbt-bigquery
+
+      # ----------------------------------------------------------------
+      # 3. BigQuery authentication
+      #    Secret BIGQUERY_SERVICE_ACCOUNT must contain the full
+      #    service account JSON (copied verbatim from the .json file).
+      # ----------------------------------------------------------------
+      - name: Write BigQuery credentials
+        env:
+          BIGQUERY_SERVICE_ACCOUNT: ${{ secrets.BIGQUERY_SERVICE_ACCOUNT }}
+        run: printf '%s' "${BIGQUERY_SERVICE_ACCOUNT}" > /tmp/bq_keyfile.json
+
+      - name: Create dbt profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<'PROFILE'
+          instacart_dbt:
+            target: ci
+            outputs:
+              ci:
+                type: bigquery
+                method: service-account
+                project: windy-container-451804-n4
+                dataset: instacart_dbt
+                keyfile: /tmp/bq_keyfile.json
+                threads: 4
+                timeout_seconds: 300
+                location: US
+          PROFILE
+
+      # ----------------------------------------------------------------
+      # 4. dbt pipeline
+      # ----------------------------------------------------------------
+      - name: dbt deps
+        working-directory: instacart_dbt
+        run: dbt deps
+
+      - name: dbt compile
+        working-directory: instacart_dbt
+        run: dbt compile
+
+      - name: dbt test
+        id: dbt_test
+        working-directory: instacart_dbt
+        continue-on-error: true
+        run: dbt test
+
+      # ----------------------------------------------------------------
+      # 5. Print PASS / FAIL for every test, then fail if any failed.
+      #    Runs even when the dbt test step exits non-zero so results
+      #    are always visible in the Actions log.
+      # ----------------------------------------------------------------
+      - name: Print PASS / FAIL per test
+        if: always()
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys, os
+
+          path = "instacart_dbt/target/run_results.json"
+          if not os.path.exists(path):
+              print("ERROR: run_results.json not found.")
+              print("       dbt may have failed before any tests ran (auth or compile error).")
+              sys.exit(1)
+
+          with open(path) as f:
+              data = json.load(f)
+
+          tests = [r for r in data.get("results", [])
+                   if r.get("unique_id", "").startswith("test.")]
+
+          if not tests:
+              print("ERROR: No test results found in run_results.json.")
+              print("       Check the dbt compile / dbt test step output above.")
+              sys.exit(1)
+
+          # Pretty-print each result
+          print()
+          print("=" * 70)
+          print(f"  dbt Test Results  ({len(tests)} tests)")
+          print("=" * 70)
+
+          n_pass, n_fail = 0, 0
+          failures = []
+
+          for r in tests:
+              uid    = r.get("unique_id", "")
+              parts  = uid.split(".")
+              # unique_id format: test.<project>.<test_name>.<hash>
+              name   = ".".join(parts[2:-1]) if len(parts) > 3 else uid
+              status = r.get("status", "unknown").lower()
+
+              if status == "pass":
+                  print(f"  PASS  {name}")
+                  n_pass += 1
+              else:
+                  msg = (r.get("message") or "").strip().split("\n")[0]
+                  print(f"  FAIL  {name}")
+                  if msg:
+                      print(f"        └─ {msg}")
+                  n_fail += 1
+                  failures.append(name)
+
+          print("=" * 70)
+          print(f"  Total: {len(tests)}  |  Passed: {n_pass}  |  Failed: {n_fail}")
+          print("=" * 70)
+
+          if n_fail > 0:
+              print(f"\nFAIL — {n_fail} test(s) did not pass.")
+              sys.exit(1)
+          else:
+              print(f"\nPASS — all {n_pass} tests passed.")
+          PYEOF
+
+      # ----------------------------------------------------------------
+      # 6. Cleanup — always delete credentials, even on failure
+      # ----------------------------------------------------------------
+      - name: Delete credentials file
+        if: always()
+        run: rm -f /tmp/bq_keyfile.json
