@@ -1,8 +1,3 @@
-Here's the complete README in one block — copy everything between the lines:
-
----
-
-```markdown
 # Instacart Churn & Customer Retention Analysis
 
 [![Streamlit](https://img.shields.io/badge/Live%20Dashboard-Streamlit-FF4B4B?style=flat&logo=streamlit)](https://instacart-churn-retention-analysis-dashboard.streamlit.app/)
@@ -53,22 +48,28 @@ The $980,584 waste finding is the one that matters most for business. 89,144 low
 
 ## What I built
 
-**Python pipeline (11 scripts)**
-End-to-end from raw CSVs to model outputs. Includes hypothesis validation before feature engineering, three rounds of leakage detection (AUC went from 1.0 to 0.9059 across the fixes), and an XGBoost classifier plus a Random Forest revenue regressor combined into a customer risk ranking.
+**Python pipeline (12 scripts)**
+End-to-end from raw CSVs to model outputs. Includes hypothesis validation before feature engineering, three rounds of leakage detection (AUC went from 1.0 to 0.9059 across the fixes), an XGBoost classifier plus a Random Forest revenue regressor combined into a customer risk ranking, and a cohort retention analysis across 175,072 customers.
 
 **SQL layer**
 A 1.6 GB SQLite database with 33.8M rows, built using executemany() for performance. Three SQL files demonstrating window functions, CTEs, NTILE(), ROW_NUMBER(), and running Pareto totals.
 
 **dbt + BigQuery**
-I rebuilt the transformation layer as a proper three-tier dbt project on BigQuery — staging views, an intermediate join layer, and a star schema mart with six tables. 15 automated data tests, sources.yml, schema.yml with column-level documentation, and a lineage graph. The fact table is 175,072 rows with one row per customer and every dimension joined in.
+I rebuilt the transformation layer as a proper three-tier dbt project on BigQuery — staging views, an intermediate join layer, and a star schema mart with six tables. 15 automated data tests, sources.yml, schema.yml with column-level documentation, and a lineage graph. The fact table is 175,072 rows with one row per customer and every dimension joined in. dbt Exposures declare Streamlit and Power BI as consumers of the mart layer.
+
+**CI/CD + Data Governance**
+15 dbt tests run automatically on every push via GitHub Actions — the green badge above confirms current status. All 15 dashboard KPIs are documented in `docs/kpi_glossary.md` with formula, data source, and business interpretation.
+
+**Cohort Retention Analysis**
+175,072 customers grouped by ordering cadence reveal a 64.8 percentage point retention gap by order 10 — very frequent customers (≤7 days) retain at 83.9% while infrequent customers (>21 days) drop to 19.1%. Heatmap visualized in the Cohort Retention dashboard page.
 
 **Power BI report (4 pages, live)**
 Connected directly to the BigQuery mart via DirectQuery. No data import — every refresh queries the warehouse live. Four pages: executive KPI scorecard, customer risk by trajectory type, intervention ROI comparison, and department exposure heatmap. Slicers on every page.
 
 🔗 https://app.powerbi.com/links/phH_dmePJX?ctid=70de1992-07c6-480f-a318-a1afcba03983&pbi_source=linkShare
 
-**Streamlit dashboard (7 pages, live)**
-Includes a behavioral monitor that simulates weekly re-scoring using order sequence as a time proxy, and a live ROI simulator where you can adjust campaign parameters and see revenue impact update in real time.
+**Streamlit dashboard (8 pages, live)**
+Includes a behavioral monitor that simulates weekly re-scoring using order sequence as a time proxy, a live ROI simulator, a cohort retention heatmap, and role-based views for Finance, Marketing, and Ops audiences on three core pages.
 
 🔗 https://instacart-churn-retention-analysis-dashboard.streamlit.app/
 
@@ -105,7 +106,7 @@ Type D is the most important group. Low churn rate but highest annual value — 
 
 ## Tech stack
 
-Python · SQL · XGBoost · Scikit-learn · dbt · BigQuery · Power BI · Streamlit · Plotly · SQLite · Git
+Python · SQL · XGBoost · Scikit-learn · dbt · BigQuery · Power BI · Streamlit · Plotly · SQLite · GitHub Actions · Git
 
 ---
 
@@ -127,6 +128,7 @@ python pipeline/07_category_exposure.py
 python pipeline/08_churn_model.py
 python pipeline/09_executive_summary.py
 python pipeline/10_weekly_monitor.py
+python pipeline/11_cohort_analysis.py
 
 python sql/00_create_database.py
 
@@ -143,27 +145,3 @@ For the dbt layer you'll need `~/.dbt/profiles.yml` configured with your BigQuer
 ---
 
 ## Project structure
-
-```
-instacart-analytics1/
-├── pipeline/          11 scripts — load, clean, validate, model, monitor
-├── sql/               SQLite database + 3 SQL query files
-├── instacart_dbt/     dbt project — staging, intermediate, marts, tests, docs
-├── streamlit/         7-page dashboard + data files for Cloud deployment
-├── data/processed/    Pipeline outputs (raw CSVs not committed)
-├── outputs/           Charts and reports
-├── models/            best_model.pkl (XGBoost) + revenue_regressor.pkl (RF)
-├── docs/              decision_log.md + analyst_notes.md
-└── Instacart_Retention_Analysis.pbix   Power BI report file
-```
-
----
-
-## Honest limitations
-
-The revenue figures use a $3.50/item proxy — there are no real prices in this dataset. The regressor R² is 0.18, which is intentional — revenue per customer is genuinely uncertain and the model reflects that. Recovery rates (20–40% by trajectory type) are based on industry benchmarks, not observed outcomes from this data. Retrain monthly on fresh order data in a production setting.
-
----
-
-*Dataset: [Instacart Market Basket Analysis](https://www.kaggle.com/c/instacart-market-basket-analysis/data) — publicly released for a 2017 Kaggle competition.*
-```
