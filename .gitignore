@@ -1,0 +1,18 @@
+﻿data/raw/
+data/processed/master_orders.csv
+data/processed/cleaned_orders.csv
+/models/
+__pycache__/
+*.pyc
+*.pkl
+
+# Credentials
+dbt/service_account.json
+*.key
+*.pem
+.env
+
+# Large data files — exceed GitHub's 100 MB hard limit
+data/processed/instacart.db
+data/processed/customer_features.csv
+data/processed/cleaned_orders.csv

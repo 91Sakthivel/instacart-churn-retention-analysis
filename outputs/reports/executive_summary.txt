@@ -1,0 +1,109 @@
+=================================================================
+INSTACART BASKET SHRINKAGE & REVENUE PROTECTION
+Executive Summary -- Monday Morning Business Briefing
+=================================================================
+
+-- DATA OVERVIEW ------------------------------------------------
+  Total customers analyzed:      206,209
+  In behavioral model:           175,072
+  Excluded (<5 orders):          31,137 (15.1%)
+  Bulk buyers flagged:           64
+  Zero-reorder customers:        366
+
+-- CLEANING DECISIONS -------------------------------------------
+  D1: days_since_prior_order nulls = first orders -> filled 0, flagged first_order=1
+  D2: Duplicate order+product check -> dataset clean, no rows removed
+  D3: Basket >80 items -> flagged bulk_buyer=1, kept (valid behavior pattern)
+  D4: Customers <5 orders -> saved to excluded_customers.csv, removed from model
+  D5: Single-dept customers -> flagged single_dept_customer=1, kept
+  D6: Zero-reorder customers -> flagged zero_reorder_customer=1, kept
+  D7: Null check on key columns -> zero nulls confirmed
+
+-- VALIDATION FINDINGS ------------------------------------------
+  Check 1 -- Basket decline:   NOT SUPPORTED
+    Basket flat/rising into final order (9.79 -> 10.15 items).
+    basket_slope removed from all predictive features.
+
+  Check 2 -- Order gap widening: VALIDATED
+    Gap: 15.3d -> 16.1d -> 16.9d -> 18.2d -> 30.0d before churn.
+    gap_trend is primary temporal signal.
+
+  Check 3 -- Category shift:   NOT SUPPORTED
+    Produce share stable regardless of churn (p=0.237).
+    category_shift_score removed from all predictive features.
+
+  Check 4 -- Reorder rate:     STRONGLY VALIDATED
+    Active 53.3% vs churned 43.4% -- 10pt delta, p~=0.
+    Strongest single predictor in dataset.
+
+  Check 5 -- Natural clusters: 4 frequency/gap clusters (NOT basket trajectory)
+    C0: 48.9% churn | C1: 14.3% | C2: 2.5% | C3: 25.6%
+
+-- FEATURE ENGINEERING ------------------------------------------
+  Features built:   29
+  Removed (failed): basket_slope, shrinkage_velocity, category_shift_score (+2 derived)
+  Top features: reorder_rate, gap_trend, days_since_last_order,
+    avg_days_between_orders, early_avg_gap, late_avg_gap, reorder_trend
+
+-- RQ1 FINDINGS -- Who is at risk? ------------------------------
+  Trajectory classification:
+    Type B (Sudden Stop           ):  6,010 customers, 35.0% churn
+    Type D (High Value Drifting   ):  9,786 customers, 22.3% churn
+    Type A (Fading Frequency      ):  2,498 customers, 44.5% churn
+    Type C (Low Loyalty           ): 89,144 customers, 14.9% churn
+
+  Model performance:
+    Best model: XGBoost
+    Test AUC:   0.9059
+    5-fold CV:  0.9070 +/- 0.0013
+  Revenue regressor:
+    R2: 0.1826  RMSE: $23.98  CV R2: 0.1898
+  Risk ranking:
+    Top 500 customers = 0.8% of projected revenue at risk
+    Pareto: top 93,043 customers = 80% of risk
+
+-- RQ2 FINDINGS -- When and how to intervene? -------------------
+  Intervention windows:
+    Type B: 48 hours after sudden stop detected
+    Type D: before gap exceeds 20 days
+    Type A: within next 4-6 orders
+    Type C: light touch only
+
+  ROI by offer:
+    Type B $15.00 phone call: 3820% ROI
+    Type D $8.50 loyalty reward: 17891% ROI
+    Type A $11.00 product discount: 6075% ROI
+    Type C $0.50 push notification: 43849% ROI
+  Budget alert: mistargeting 89,144 Type C with $11 discount = $980,584 wasted
+
+-- RQ3 FINDINGS -- Which categories are exposed? ----------------
+  Total 60-day category revenue at risk: $626,303
+  Top 7 departments: 80% of exposure
+  Most exposed: produce ($183,384)
+
+  Residual analysis (churn beyond behavioral model):
+    Higher than expected: none
+    Lower than expected:  none
+    Biggest surprise: 'canned goods' +0.0% unexpected churn
+      -> investigate product availability/pricing, not customer behavior
+
+-- TOP 3 RECOMMENDATIONS ----------------------------------------
+
+  Priority 1: Loyalty rewards to Type D (High Value Drifting)
+    40% recovery at $8.50 cost. Trigger when gap_trend>5 AND reorder_rate>=0.55.
+    These customers have highest annual value and respond to recognition.
+
+  Priority 2: Type B (Sudden Stop) personal outreach within 48 hours
+    Trigger: early_avg_gap<12 AND late_avg_gap_clean>20 (was frequent, gaps now widening).
+    20% recovery on customers who abruptly stopped a high-frequency habit.
+
+  Priority 3: Investigate high-residual departments operationally
+    No strong departmental anomalies found. Customer behavior is primary churn driver.
+
+=================================================================
+ALL BLOCKS COMPLETE. Final numbers:
+  RQ1: XGBoost AUC=0.9059, CV=0.9070+/-0.0013, R2=0.1826, top 500=0.8% of risk
+  RQ2: Best ROI = Type C (43849%). Intervention windows: B=48h, D=<20d gap, A=4-6 orders, C=light touch
+  RQ3: Biggest residual surprise = 'canned goods' +0.0% unexpected churn
+  Ready for GitHub.
+=================================================================

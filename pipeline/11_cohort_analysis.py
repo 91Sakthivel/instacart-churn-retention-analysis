@@ -19,8 +19,11 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
 
-STREAMLIT_DIR = os.path.join(config.BASE_DIR, 'streamlit')
-OUT_PATH      = os.path.join(STREAMLIT_DIR, 'cohort_heatmap.png')
+STREAMLIT_DIR  = os.path.join(config.BASE_DIR, 'streamlit')
+OUT_PATH       = os.path.join(STREAMLIT_DIR, 'cohort_heatmap.png')
+OUT_CHARTS_PNG = os.path.join(config.CHARTS_DIR, 'cohort_heatmap.png')
+OUT_CSV        = os.path.join(STREAMLIT_DIR, 'cohort_retention.csv')
+OUT_CSV_RPT    = os.path.join(config.REPORTS_DIR, 'cohort_retention.csv')
 
 print("=" * 60)
 print("Cohort Retention Analysis - 11_cohort_analysis.py")
@@ -148,12 +151,24 @@ fig.text(
 plt.tight_layout()
 
 # ----------------------------------------------------------------
-# 5. Save PNG
+# 5. Save PNG (streamlit/ + outputs/charts/)
 # ----------------------------------------------------------------
 os.makedirs(STREAMLIT_DIR, exist_ok=True)
+os.makedirs(config.CHARTS_DIR, exist_ok=True)
 plt.savefig(OUT_PATH, dpi=150, bbox_inches='tight', facecolor='white')
+plt.savefig(OUT_CHARTS_PNG, dpi=150, bbox_inches='tight', facecolor='white')
 plt.close()
-print(f"\nSaved: {OUT_PATH}")
+print(f"\nSaved PNG : {OUT_PATH}")
+print(f"Saved PNG : {OUT_CHARTS_PNG}")
+
+# ----------------------------------------------------------------
+# 5b. Save retention matrix as CSV
+# ----------------------------------------------------------------
+os.makedirs(config.REPORTS_DIR, exist_ok=True)
+retention_df.reset_index().to_csv(OUT_CSV, index=False)
+retention_df.reset_index().to_csv(OUT_CSV_RPT, index=False)
+print(f"Saved CSV : {OUT_CSV}")
+print(f"Saved CSV : {OUT_CSV_RPT}")
 
 # ----------------------------------------------------------------
 # 6. Key insights summary

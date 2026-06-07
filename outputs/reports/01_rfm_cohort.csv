@@ -1,0 +1,5 @@
+segment,n_customers,pct_of_base,avg_recency_days,avg_orders,avg_items_total,min_items,max_items,n_top20pct_spenders,pct_top20pct_spenders,n_above_median_freq,avg_r_score,avg_f_score,avg_m_score
+Champions,55022,26.7,6.7,33.9,362.0,91,3725,31067,56.5,55022,3.48,3.7,3.67
+Loyal,30878,15.0,7.5,10.1,74.0,6,408,226,0.7,10067,3.39,2.32,2.01
+At Risk,35531,17.2,24.9,19.4,196.0,11,2051,9606,27.0,35531,1.55,3.35,3.08
+Lost,84778,41.1,23.1,5.6,55.0,3,451,342,0.4,2484,1.77,1.42,1.67

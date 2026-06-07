@@ -1,0 +1,5 @@
+segment,eligible_customers,shrinking_count,pct_shrinking,total_revenue_at_risk,pct_of_total_risk,avg_risk_per_customer,severe_count,moderate_count,mild_count,avg_slope,avg_order_gap_days,avg_basket_size
+Champions,55022,1492,2.7,1064924.0,55.5,714.0,874,499,119,-2.6359,10.1,12.0
+Lost,53641,1594,3.0,328030.0,17.1,206.0,1138,376,80,-2.4193,20.1,9.6
+Loyal,30878,898,2.9,294720.0,15.4,328.0,620,230,48,-2.1429,14.1,9.0
+At Risk,35531,914,2.6,230465.0,12.0,252.0,609,243,62,-2.3578,14.7,10.0
