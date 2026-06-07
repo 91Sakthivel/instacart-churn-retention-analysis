@@ -1291,11 +1291,11 @@ elif page == "Cohort Retention":
     st.markdown("---")
 
     # Load cohort data
-    cohort_csv = pd.read_csv(str(_HERE / "cohort_retention.csv"))
+    cohort_csv = pd.read_csv(str(_HERE / "streamlit" / "cohort_retention.csv"))
 
     # Display heatmap
     st.subheader("Retention Heatmap by Customer Cohort")
-    st.image(str(_HERE / "cohort_heatmap.png"), use_container_width=True)
+    st.image(str(_HERE / "streamlit" / "cohort_heatmap.png"), use_container_width=True)
 
     # Key insight box - readable formatting
     st.info("""
@@ -1334,7 +1334,7 @@ This massive gap suggests ordering cadence is the strongest predictor of long-te
     # Download button
     st.download_button(
         label="📥 Download Cohort Retention Data (CSV)",
-        data=(_HERE / "cohort_retention.csv").read_bytes(),
+        data=(_HERE / "streamlit" / "cohort_retention.csv").read_bytes(),
         file_name="cohort_retention.csv",
         mime="text/csv",
     )
