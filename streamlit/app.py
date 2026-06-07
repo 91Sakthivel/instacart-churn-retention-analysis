@@ -238,7 +238,7 @@ if page == "Executive Dashboard":
         _est_rev = float((_r_tmp["predicted_loss"] * _r_tmp["_rr"]).sum())
 
     # Row 1 — 4 cards
-    k1, k2, k3, k4 = st.columns(4)
+    k1, k2, k3, k4 = st.columns([1.2, 1.2, 1, 1], gap="medium")
     k1.metric("Total Customers Analyzed",  f"{_TOTAL_MODELLED:,}")
     k2.metric("High-Risk Customers",       f"{_high_risk_n:,}")
     k3.metric("High-Risk %",               f"{_high_risk_pct:.1f}%")
@@ -1061,7 +1061,7 @@ elif page == "Model Performance":
     st.subheader("Final Model Metrics")
     if len(metrics) > 0:
         m = metrics.iloc[0]
-        fn1, fn2, fn3, fn4 = st.columns(4)
+        fn1, fn2, fn3, fn4 = st.columns([1.2, 1.2, 1, 1], gap="medium")
         fn1.metric("Best Model",    str(m.get("best_model_name", "XGBoost")))
         fn2.metric("Test AUC",      f"{float(m.get('test_auc', 0.9059)):.4f}")
         fn3.metric("5-Fold CV AUC", f"{float(m.get('cv_mean', 0.907)):.4f} +/- {float(m.get('cv_std', 0.001)):.4f}")
@@ -1070,7 +1070,7 @@ elif page == "Model Performance":
         rr1.metric("Regressor RMSE",       f"${float(m.get('reg_rmse', 23.98)):.2f}")
         rr2.metric("Pareto (80% of risk)", f"Top {int(m.get('pareto_80pct_customers', 0)):,} customers")
     else:
-        fn1, fn2, fn3, fn4 = st.columns(4)
+        fn1, fn2, fn3, fn4 = st.columns([1.2, 1.2, 1, 1], gap="medium")
         fn1.metric("Best Model",    "XGBoost")
         fn2.metric("Test AUC",      "0.9059")
         fn3.metric("5-Fold CV AUC", "0.9070 +/- 0.0013")
@@ -1127,7 +1127,7 @@ elif page == "Behavioral Monitor":
     # ----------------------------------------------------------
     # Row 1 — Metric cards
     # ----------------------------------------------------------
-    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1, mc2, mc3, mc4 = st.columns([1.2, 1.2, 1, 1], gap="medium")
     mc1.metric("🔴 Newly At-Risk",   f"{n_newly:,}",       help="Was Low/Medium in S1, now High in S3")
     mc2.metric("🟢 Recovering",      f"{n_recovering:,}",  help="Was High in S1, now Low/Medium in S3")
     mc3.metric("⚠️ Stable High",     f"{n_stable_high:,}", help="High risk in both snapshots")
