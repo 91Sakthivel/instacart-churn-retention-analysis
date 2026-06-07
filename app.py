@@ -1291,7 +1291,7 @@ elif page == "Cohort Retention":
     st.markdown("---")
 
     # Load cohort data
-    cohort_csv = pd.read_csv(_HERE / "cohort_retention.csv")
+    cohort_csv = pd.read_csv(str(_HERE / "cohort_retention.csv"))
 
     # Display heatmap
     st.subheader("Retention Heatmap by Customer Cohort")
